@@ -1,0 +1,115 @@
+#include <Arduino.h>
+#include <BluetoothSerial.h>
+BluetoothSerial SerialBT[3];
+bool emparejado[3] = {false,false,false};
+const int ledPin1 = 12;  // Pin utilizado para el motor 1 
+const int ledPin2 = 14;  // Pin utilizado para el motor 2
+const int resolution = 10;  // Resolución PWM deseada (en bits)
+const int dutyCycle = 92;
+const int dutyCycle_2 = 46;
+const int dutyCycle_3 = 77;
+int modo = 0; // modo 0 (parado), modo 1 (adelante), modo 2 (atras)
+const int dispositivos = 3;
+
+
+
+
+void connect_successful(int i) {
+  while (!emparejado[i]) {
+    if (!SerialBT[i].connected()) {
+      Serial.println("Esperando emparejamiento...");
+      delay(1000);
+    } else {
+      Serial.println("Emparejado con el esclavo " + String(i));
+      emparejado[i] = true;
+      break;
+    }
+  }
+
+
+  
+}
+
+
+void motoradelante(){
+    ledcWrite(0, dutyCycle);  // Escribir el ciclo de trabajo (0-2^resolution)
+    ledcWrite(1, dutyCycle_2);  // Escribir el ciclo de trabajo (0-2^resolution)
+}
+void motoratras(){
+    ledcWrite(0, dutyCycle_2);  // Escribir el ciclo de trabajo (0-2^resolution)
+    ledcWrite(1, dutyCycle);  // Escribir el ciclo de trabajo (0-2^resolution)
+}
+void motorparado(){
+    ledcWrite(0, dutyCycle_3);  // Escribir el ciclo de trabajo (0-2^resolution)
+    ledcWrite(1, dutyCycle_3);  // Escribir el ciclo de trabajo (0-2^resolution)
+}
+
+void setup()
+
+{
+  Serial.begin(115200); 
+  for (int i = 0; i < dispositivos; ++i) {
+    SerialBT[i=1].begin("ARANA_Master", true);
+    SerialBT[i].connect("ARANA_Esclavo" + String(i+1));
+  }
+
+  Serial.println("ESP32 maestro iniciado");
+  pinMode(ledPin1, OUTPUT);
+  pinMode(ledPin2, OUTPUT);
+  // Configurar la resolución del PWM
+  ledcSetup(0, 50, resolution);  // Canal 0, frecuencia de 5 kHz
+  ledcSetup(1, 50, resolution);  // Canal 0, frecuencia de 5 kHz
+  // Asignar el pin al canal PWM
+  ledcAttachPin(ledPin1, 0);
+  ledcAttachPin(ledPin2, 1);
+  
+}
+
+
+void loop() {
+  for (int i = 0; i < dispositivos; ++i) {
+    connect_successful(i); // Espera hasta que se conecte correctamente con el dispositivo i
+
+    if (SerialBT[i].available()) {
+      String v = SerialBT[i].readStringUntil('\n');
+      Serial.println(v);
+      
+      if (v.startsWith("F")) { //verifica si lo recibido empieza con 'A'
+        if (modo==0){
+              SerialBT[1].print("A");
+              SerialBT[2].print("A");
+              motoradelante();
+              delay(2000);
+              if(v.startsWith("D")){
+                modo = 1;
+              }             
+        }
+        
+      }
+      if (v.startsWith("B")) { //verifica si lo recibido empieza con 'A'
+        if (modo==0){
+              SerialBT[1].print("Z");
+              SerialBT[2].print("Z");
+              motoratras();
+              delay(2000);
+              if(v.startsWith("D")){
+                modo = 2;
+              }             
+        }
+        
+      } 
+      if (v.startsWith("S")) { //verifica si lo recibido empieza con 'A'
+        if (modo==0){
+              SerialBT[1].print("C");
+              SerialBT[2].print("C");
+              motorparado();
+              delay(2000);
+              if(v.startsWith("D")){
+                modo = 0;
+              }             
+        }
+        
+      }  
+    }
+  }
+}
