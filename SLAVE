@@ -1,0 +1,87 @@
+#include <Arduino.h>
+#include <BluetoothSerial.h>
+bool emparejado = false;
+BluetoothSerial SerialBT;
+const int ledPin1 = 12;  // Pin utilizado para el motor 1 
+const int ledPin2 = 14;  // Pin utilizado para el LED 2 
+const int resolution = 10;  // Resolución PWM deseada (en bits)
+const int dutyCycle = 92;
+const int dutyCycle_2 = 46;
+const int dutyCycle_3 = 77;
+int modo = 0; // modo 0 (parado), modo 1 (adelante), modo 2 (atras)
+
+
+void connect_successful(){
+  while (!emparejado)
+  {
+    if (!SerialBT.connected())
+    {
+      Serial.println("Esperando emparejamiento...");
+      delay(1000);
+    }
+    else
+    {
+      Serial.println("Emparejado con el esclavo");
+      emparejado = true;
+    }
+  }
+}
+void motoradelante(){
+    ledcWrite(0, dutyCycle);  // Escribir el ciclo de trabajo (0-2^resolution)
+    ledcWrite(1, dutyCycle);  // Escribir el ciclo de trabajo (0-2^resolution)
+    
+}
+void motoratras(){
+    ledcWrite(0, dutyCycle_2);  // Escribir el ciclo de trabajo (0-2^resolution)
+    ledcWrite(1, dutyCycle_2);  // Escribir el ciclo de trabajo (0-2^resolution)
+}
+void motorparado(){
+    ledcWrite(0, dutyCycle_3);  // Escribir el ciclo de trabajo (0-2^resolution)
+    ledcWrite(1, dutyCycle_3);  // Escribir el ciclo de trabajo (0-2^resolution)
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  SerialBT.begin("ARANA_Esclavo");  // Nombre del dispositivo Bluetooth del esclavo
+  SerialBT.connect("ARANA_Master"); // Nombre del dispositivo Bluetooth del maestro
+  Serial.println("ESP32 esclavo iniciado");
+  pinMode(ledPin1, OUTPUT);
+  pinMode(ledPin2, OUTPUT);
+  // Configurar la resolución del PWM
+  ledcSetup(0, 50, resolution);  // Canal 0, frecuencia de 5 kHz
+  ledcSetup(1, 50, resolution);  // Canal 0, frecuencia de 5 kHz
+  // Asignar el pin al canal PWM
+  ledcAttachPin(ledPin1, 0);
+  ledcAttachPin(ledPin2, 1);
+  
+}
+
+void loop()
+{
+  connect_successful();   //No saldrá de esta función hasta que se conecte correctamente con el dispositivo colocado en SerialBT.connect
+
+ // if (SerialBT.available())
+ // {
+    
+//  }
+
+  if (Serial.available())
+    {
+    SerialBT.print(Serial.readString());
+    String v = SerialBT.readStringUntil('\n');
+    Serial.println(v);
+    if (v.startsWith("A")){	//verificamos si lo recibido empieza con on
+        motoradelante();
+        SerialBT.print("D");
+    }
+    else if (v.startsWith("Z")){	//verificamos si lo recibido empieza con off 
+        motoratras();
+        SerialBT.print("D");
+    }    
+    if(v.startsWith("C")){
+        motorparado();
+        SerialBT.print("D");
+    }
+    }
+  }
